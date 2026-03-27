@@ -1,0 +1,26 @@
+plan:
+  original_sheet_id: "1wwH1zlAWDVWLffrSa9CFum0AWYJeVOuvIJr-U1xmzOU"
+  active_sheet_id: ""
+  sheet_range: "KM!A1:Z80"
+  start_date: "2026-01-05"
+
+schedule:
+  morning_brief_hour: 5
+  morning_brief_minute: 0
+  missed_check_hour: 23
+  missed_check_minute: 0
+  strava_poll_interval_minutes: 15
+  weekly_summary_day: 6
+  weekly_summary_hour: 20
+
+race:
+  date: "2026-05-31"
+  goal_time: "1:35:00"
+  distance_km: 21.1
+
+db:
+  path: "data/coach.db"
+
+logging:
+  file: "data/coach.log"
+  level: "INFO"
