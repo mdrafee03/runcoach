@@ -128,10 +128,41 @@ def build_weekly_summary_prompt(weekly_activities: list[dict], plan_days: list[d
         f"Volume: {weekly_km}/{weekly_target_km}km ({weekly_km/max(weekly_target_km,1)*100:.0f}%)",
         f"Compliance: {compliance:.0f}% ({len(completed)} completed, {len(missed)} missed)",
     ]
-    if missed:
-        parts.append(f"Missed: {', '.join(d['workout_type'] + ' (' + d['date'] + ')' for d in missed)}")
+    # Build day-by-day breakdown: match plan to actual activity
+    parts.append(f"\nDAY-BY-DAY BREAKDOWN:")
+    plan_by_date = {d["date"]: d for d in plan_days}
+    activity_by_date = {}
     for act in weekly_activities:
-        parts.append(f"  {act['date']}: {act['activity_type']} {act.get('distance_km','')}km @ {act.get('pace_min_km','')}min/km HR:{act.get('hr_avg','N/A')}")
+        activity_by_date[act["date"]] = act
+
+    for d in plan_days:
+        day_date = d["date"]
+        day_name = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        from datetime import date as date_cls
+        dt = date_cls.fromisoformat(day_date)
+        dn = day_name[dt.weekday()]
+        planned = f"{d['workout_type']} {d.get('target_distance_km', '') or ''}km"
+        if d.get("target_pace"):
+            planned += f" @ {d['target_pace']}"
+
+        act = activity_by_date.get(day_date)
+        if act:
+            actual = f"{act['activity_type']} {act.get('distance_km', '')}km @ {act.get('pace_min_km', '')}min/km HR:{act.get('hr_avg', 'N/A')}"
+            status = "DONE"
+        elif d.get("actual_status") == "missed":
+            actual = "MISSED"
+            status = "MISSED"
+        elif d["workout_type"] in ("Rest", "Rest Day"):
+            actual = "Rest"
+            status = "REST"
+        else:
+            actual = "No activity"
+            status = "PENDING"
+
+        parts.append(f"  {dn} {day_date} | Plan: {planned} | Actual: {actual} | Status: {status}")
+
+    if missed:
+        parts.append(f"\nMissed workouts: {', '.join(d['workout_type'] + ' (' + d['date'] + ')' for d in missed)}")
 
     if next_week_plan:
         parts.append(f"\nNEXT WEEK'S CURRENT PLAN:")
@@ -139,15 +170,25 @@ def build_weekly_summary_prompt(weekly_activities: list[dict], plan_days: list[d
             parts.append(f"  {d['date']} ({d['workout_type']}): {d.get('target_distance_km', '')}km @ {d.get('target_pace', '')}")
 
     parts.append("""
-Provide your analysis in TWO parts:
+Provide your analysis in THREE parts:
 
-PART 1 - WEEKLY SUMMARY:
-- Overall assessment of the week
-- Highlights and positives
+PART 1 - DAY-BY-DAY SCORES:
+For each day that had an activity, give:
+- Day & date
+- Score out of 10
+- One-line verdict (pace vs plan, HR appropriateness, distance compliance)
+- What was good / what could improve
+Format each day clearly. Skip rest days.
+
+PART 2 - WEEKLY SUMMARY:
+- Overall week score out of 10
+- Total volume assessment
+- Compliance rating
+- Key highlights and positives
 - Concerns or areas to watch
 - Recovery status
 
-PART 2 - NEXT WEEK ADJUSTMENTS:
+PART 3 - NEXT WEEK ADJUSTMENTS:
 Based on this week's performance, fatigue, compliance, and race timeline, suggest specific changes to next week's plan.
 
 You MUST output adjustments in this exact JSON format at the end of your response, inside ```json``` code block:
