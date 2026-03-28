@@ -31,15 +31,22 @@ def build_morning_prompt(plan: dict, health: dict | None, weeks_to_race: int, ra
 
 
 def build_activity_prompt(plan: dict, activity: dict, weekly_km: float,
-                          weekly_target_km: float, weeks_to_race: int, race_goal: str) -> str:
-    return "\n".join([
+                          weekly_target_km: float, weeks_to_race: int, race_goal: str,
+                          health: dict | None = None) -> str:
+    parts = [
         f"Analyze this completed workout.",
         f"Race goal: {race_goal} HM in {weeks_to_race} weeks.",
         f"Plan: {plan['workout_type']} {plan.get('target_distance_km', '')}km @ {plan.get('target_pace', 'N/A')}/km",
         f"Actual: {activity['activity_type']} {activity['distance_km']}km @ {activity['pace_min_km']}min/km, HR avg: {activity.get('hr_avg', 'N/A')}",
         f"Weekly progress: {weekly_km}/{weekly_target_km}km",
-        f"Provide: performance vs plan, what went well, any concerns, what's next.",
-    ])
+    ]
+    if health:
+        parts.append(f"Health: HRV: {health.get('hrv')}, Resting HR: {health.get('resting_hr')}, "
+                      f"Sleep: {health.get('sleep_score')}, Body Battery: {health.get('body_battery')}, "
+                      f"VO2max: {health.get('vo2max')}, Training Load: {health.get('training_load')}, "
+                      f"Recovery: {health.get('recovery_time')}h")
+    parts.append("Provide: performance vs plan, what went well, any concerns, recovery advice based on health data, what's next.")
+    return "\n".join(parts)
 
 
 def build_missed_prompt(plan: dict, weeks_to_race: int) -> str:

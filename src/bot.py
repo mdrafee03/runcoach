@@ -82,7 +82,7 @@ class RunCoach:
         await context.bot.send_message(chat_id=self.chat_id, text=response)
 
     async def analyze_latest_activity(self) -> str:
-        """Pull latest Strava activity, compare to plan, return feedback."""
+        """Pull latest Strava activity + Garmin health, compare to plan, return feedback."""
         activities = self.strava.get_recent_activities(limit=1)
         if not activities:
             return "Couldn't find any recent activity on Strava. Make sure it's synced."
@@ -91,6 +91,16 @@ class RunCoach:
         detail = self.strava.get_activity_detail(act["strava_id"])
         if detail:
             act = detail
+
+        # Pull Garmin health data for the activity date
+        health = None
+        try:
+            from datetime import date as date_cls
+            activity_date = date_cls.fromisoformat(act["date"])
+            health = self.garmin.get_health_data(activity_date)
+            self.db.save_health_metrics(date=act["date"], **{k: v for k, v in health.items() if v is not None})
+        except Exception as e:
+            logger.warning(f"Garmin fetch failed for activity feedback: {e}")
 
         # Save to DB
         self.db.save_activity(**{k: v for k, v in act.items() if k in
@@ -101,8 +111,8 @@ class RunCoach:
             self.db.update_plan_day_status(act["date"], "completed")
             weekly_km, weekly_target = self._weekly_km()
             prompt = build_activity_prompt(
-                plan=plan, activity=act, weekly_km=weekly_km,
-                weekly_target_km=weekly_target,
+                plan=plan, activity=act, health=health,
+                weekly_km=weekly_km, weekly_target_km=weekly_target,
                 weeks_to_race=self._weeks_to_race(),
                 race_goal=self.settings["race"]["goal_time"])
             return await self.coach.analyze_with_retry(prompt)
