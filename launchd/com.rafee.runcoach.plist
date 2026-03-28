@@ -10,6 +10,11 @@
         <string>-c</string>
         <string>mkdir -p /Users/rafee/Documents/fitness/running/data &amp;&amp; cd /Users/rafee/Documents/fitness/running &amp;&amp; /Users/rafee/.local/bin/uv run python -m src.bot</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Applications/cmux.app/Contents/Resources/bin:/Users/rafee/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
     <key>WorkingDirectory</key>
     <string>/Users/rafee/Documents/fitness/running</string>
     <key>RunAtLoad</key>
