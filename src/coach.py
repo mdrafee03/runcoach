@@ -115,14 +115,15 @@ def build_chat_prompt(user_message: str, context: dict, race_goal: str,
 
 def build_weekly_summary_prompt(weekly_activities: list[dict], plan_days: list[dict],
                                  weekly_km: float, weekly_target_km: float,
-                                 weeks_to_race: int, race_goal: str) -> str:
+                                 weeks_to_race: int, race_goal: str,
+                                 next_week_plan: list[dict] = None) -> str:
     completed = [d for d in plan_days if d.get("actual_status") == "completed"]
     missed = [d for d in plan_days if d.get("actual_status") == "missed"]
     non_rest = [d for d in plan_days if d["workout_type"] != "Rest"]
     compliance = len(completed) / max(len(non_rest), 1) * 100
 
     parts = [
-        f"Generate a weekly training summary.",
+        f"Generate a weekly training summary and adjust next week's plan.",
         f"Race goal: {race_goal} HM in {weeks_to_race} weeks.",
         f"Volume: {weekly_km}/{weekly_target_km}km ({weekly_km/max(weekly_target_km,1)*100:.0f}%)",
         f"Compliance: {compliance:.0f}% ({len(completed)} completed, {len(missed)} missed)",
@@ -131,7 +132,43 @@ def build_weekly_summary_prompt(weekly_activities: list[dict], plan_days: list[d
         parts.append(f"Missed: {', '.join(d['workout_type'] + ' (' + d['date'] + ')' for d in missed)}")
     for act in weekly_activities:
         parts.append(f"  {act['date']}: {act['activity_type']} {act.get('distance_km','')}km @ {act.get('pace_min_km','')}min/km HR:{act.get('hr_avg','N/A')}")
-    parts.append("Provide: summary, highlights, concerns, recommended adjustments to next week.")
+
+    if next_week_plan:
+        parts.append(f"\nNEXT WEEK'S CURRENT PLAN:")
+        for d in next_week_plan:
+            parts.append(f"  {d['date']} ({d['workout_type']}): {d.get('target_distance_km', '')}km @ {d.get('target_pace', '')}")
+
+    parts.append("""
+Provide your analysis in TWO parts:
+
+PART 1 - WEEKLY SUMMARY:
+- Overall assessment of the week
+- Highlights and positives
+- Concerns or areas to watch
+- Recovery status
+
+PART 2 - NEXT WEEK ADJUSTMENTS:
+Based on this week's performance, fatigue, compliance, and race timeline, suggest specific changes to next week's plan.
+
+You MUST output adjustments in this exact JSON format at the end of your response, inside ```json``` code block:
+
+```json
+[
+  {"date": "YYYY-MM-DD", "field": "workout_type", "old": "current value", "new": "new value", "reason": "why"},
+  {"date": "YYYY-MM-DD", "field": "target_distance_km", "old": "10", "new": "8", "reason": "why"},
+  {"date": "YYYY-MM-DD", "field": "target_pace", "old": "4:45", "new": "4:50", "reason": "why"}
+]
+```
+
+If no changes needed, output an empty array: ```json\n[]\n```
+
+Only adjust what's necessary. Common adjustments:
+- Reduce volume if fatigued or compliance was low
+- Increase intensity if the athlete is ahead of schedule
+- Swap workout types if a key session was missed
+- Add extra rest if health indicators are declining
+- Sharpen pace targets if the athlete is progressing faster than planned
+""")
     return "\n".join(parts)
 
 

@@ -1,5 +1,7 @@
+import json
 import logging
 import os
+import re
 from datetime import date, time, timedelta
 from pathlib import Path
 
@@ -136,12 +138,89 @@ class RunCoach:
         today = date.today()
         monday = today - timedelta(days=today.weekday())
         sunday = monday + timedelta(days=6)
-        plan_days = self.db.get_plan_days_for_week(self._current_week_num())
+        current_week = self._current_week_num()
+        plan_days = self.db.get_plan_days_for_week(current_week)
+        next_week_plan = self.db.get_plan_days_for_week(current_week + 1)
         activities = self.db.get_activities_between(monday.isoformat(), sunday.isoformat())
         weekly_km, weekly_target = self._weekly_km()
-        prompt = build_weekly_summary_prompt(weekly_activities=activities, plan_days=plan_days, weekly_km=weekly_km, weekly_target_km=weekly_target, weeks_to_race=self._weeks_to_race(), race_goal=self.settings["race"]["goal_time"])
+
+        prompt = build_weekly_summary_prompt(
+            weekly_activities=activities, plan_days=plan_days,
+            weekly_km=weekly_km, weekly_target_km=weekly_target,
+            weeks_to_race=self._weeks_to_race(),
+            race_goal=self.settings["race"]["goal_time"],
+            next_week_plan=next_week_plan)
         response = await self.coach.analyze_with_retry(prompt)
+
+        # Parse and apply plan adjustments from Claude's response
+        adjustments = self._parse_adjustments(response)
+        if adjustments:
+            applied = self._apply_adjustments(adjustments, current_week + 1)
+            if applied:
+                response += f"\n\n✅ {applied} plan adjustment(s) applied to next week's sheet."
+
         await context.bot.send_message(chat_id=self.chat_id, text=response)
+
+    def _parse_adjustments(self, response: str) -> list[dict]:
+        """Extract JSON adjustments from Claude's response."""
+        try:
+            match = re.search(r'```json\s*\n(.*?)\n```', response, re.DOTALL)
+            if match:
+                return json.loads(match.group(1))
+        except (json.JSONDecodeError, AttributeError) as e:
+            logger.warning(f"Failed to parse adjustments: {e}")
+        return []
+
+    def _apply_adjustments(self, adjustments: list[dict], week_num: int) -> int:
+        """Apply plan adjustments to SQLite and Google Sheet."""
+        applied = 0
+        for adj in adjustments:
+            adj_date = adj.get("date", "")
+            field = adj.get("field", "")
+            old_val = adj.get("old", "")
+            new_val = adj.get("new", "")
+            reason = adj.get("reason", "")
+
+            if not adj_date or not field or not new_val:
+                continue
+
+            # Update SQLite
+            plan_day = self.db.get_plan_day(adj_date)
+            if not plan_day:
+                continue
+
+            if field == "workout_type":
+                self.db.save_plan_day(
+                    date=adj_date, week_num=plan_day["week_num"],
+                    phase=plan_day["phase"], workout_type=new_val,
+                    target_distance_km=plan_day["target_distance_km"],
+                    target_pace=plan_day["target_pace"],
+                    actual_status=plan_day["actual_status"])
+            elif field == "target_distance_km":
+                self.db.save_plan_day(
+                    date=adj_date, week_num=plan_day["week_num"],
+                    phase=plan_day["phase"], workout_type=plan_day["workout_type"],
+                    target_distance_km=float(new_val),
+                    target_pace=plan_day["target_pace"],
+                    actual_status=plan_day["actual_status"])
+            elif field == "target_pace":
+                self.db.save_plan_day(
+                    date=adj_date, week_num=plan_day["week_num"],
+                    phase=plan_day["phase"], workout_type=plan_day["workout_type"],
+                    target_distance_km=plan_day["target_distance_km"],
+                    target_pace=new_val,
+                    actual_status=plan_day["actual_status"])
+
+            # Log the change
+            self.db.save_plan_change(
+                date=adj_date, week_num=week_num,
+                field_changed=field, old_value=str(old_val),
+                new_value=str(new_val), reason=reason)
+
+            logger.info(f"Plan adjusted: {adj_date} {field} {old_val} -> {new_val} ({reason})")
+            applied += 1
+
+        return applied
 
     def _is_done_trigger(self, msg: str) -> bool:
         """Detect if the user is saying they finished a workout."""
