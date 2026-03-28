@@ -25,23 +25,30 @@ class PlannerClient:
         self.sheet_range = sheet_range
 
     def read_sheet(self, sheet_id: str = None) -> list[list[str]]:
+        """Read training plan from Google Sheets via gws CLI.
+        Returns the 'values' array from the Sheets API response."""
         sid = sheet_id or self.active_sheet_id or self.original_sheet_id
+        params = json.dumps({"spreadsheetId": sid, "range": self.sheet_range})
         try:
             result = subprocess.run(
-                ["gws", "sheets", "+read", "--spreadsheet", sid, "--range", self.sheet_range, "--format", "json"],
+                ["gws", "sheets", "spreadsheets", "values", "get", "--params", params],
                 capture_output=True, text=True, timeout=30)
             if result.returncode != 0:
                 logger.error(f"gws sheets read failed: {result.stderr}")
                 return []
-            return json.loads(result.stdout)
+            data = json.loads(result.stdout)
+            return data.get("values", [])
         except Exception as e:
             logger.error(f"Failed to read sheet: {e}")
             return []
 
     def clone_sheet(self) -> str | None:
+        """Clone the original sheet via gws drive files copy."""
+        params = json.dumps({"fileId": self.original_sheet_id})
+        body = json.dumps({"name": "1:35 HM Active Plan"})
         try:
             result = subprocess.run(
-                ["gws", "drive", "+copy", "--file-id", self.original_sheet_id, "--name", "1:35 HM Active Plan"],
+                ["gws", "drive", "files", "copy", "--params", params, "--json", body],
                 capture_output=True, text=True, timeout=30)
             if result.returncode != 0:
                 logger.error(f"gws drive copy failed: {result.stderr}")
@@ -52,10 +59,17 @@ class PlannerClient:
             return None
 
     def update_cell(self, cell_range: str, value: str) -> bool:
+        """Update a cell in the active sheet."""
+        params = json.dumps({
+            "spreadsheetId": self.active_sheet_id,
+            "range": cell_range,
+            "valueInputOption": "RAW",
+        })
+        body = json.dumps({"values": [[value]]})
         try:
             result = subprocess.run(
-                ["gws", "sheets", "+update", "--spreadsheet", self.active_sheet_id,
-                 "--range", cell_range, "--values", json.dumps([[value]])],
+                ["gws", "sheets", "spreadsheets", "values", "update",
+                 "--params", params, "--json", body],
                 capture_output=True, text=True, timeout=30)
             return result.returncode == 0
         except Exception as e:
