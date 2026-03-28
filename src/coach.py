@@ -99,7 +99,7 @@ class Coach:
         full_prompt = f"{self.system_prompt}\n\n{prompt}"
         try:
             result = subprocess.run(
-                ["claude", "-p", full_prompt, "--model", "sonnet"],
+                ["/Applications/cmux.app/Contents/Resources/bin/claude", "-p", full_prompt, "--model", "sonnet"],
                 capture_output=True, text=True, timeout=120,
             )
             if result.returncode != 0:
