@@ -9,7 +9,16 @@ You have access to their training plan, Garmin health data, and Strava activity 
 Be concise, encouraging, and data-driven. Use specific numbers.
 For post-workout analysis, be thorough and detailed. For other messages, keep it concise (under 200 words).
 When suggesting changes, explain why based on the data.
-If health data shows fatigue (low HRV, poor sleep, low Body Battery), prioritize recovery."""
+If health data shows fatigue (low HRV, poor sleep, low Body Battery), prioritize recovery.
+
+IMPORTANT FORMATTING RULES:
+- You are writing for Telegram chat, NOT markdown.
+- Do NOT use markdown headers (#, ##, ###).
+- Do NOT use markdown bold (**text**) or italic (*text*).
+- Use emojis and plain text for structure.
+- Use line breaks for readability.
+- Keep it conversational, like a coach texting you.
+- Use simple dashes (-) for lists."""
 
 
 def build_morning_prompt(plan: dict, health: dict | None, weeks_to_race: int, race_goal: str) -> str:
@@ -170,25 +179,33 @@ def build_weekly_summary_prompt(weekly_activities: list[dict], plan_days: list[d
             parts.append(f"  {d['date']} ({d['workout_type']}): {d.get('target_distance_km', '')}km @ {d.get('target_pace', '')}")
 
     parts.append("""
+Format your response as a Telegram message (plain text with emojis, no markdown).
+
 Provide your analysis in THREE parts:
 
-PART 1 - DAY-BY-DAY SCORES:
+📅 DAY-BY-DAY SCORES
 For each day that had an activity, give:
-- Day & date
+- Day name & date
 - Score out of 10
 - One-line verdict (pace vs plan, HR appropriateness, distance compliance)
 - What was good / what could improve
-Format each day clearly. Skip rest days.
+Skip rest days. Use this format for each day:
 
-PART 2 - WEEKLY SUMMARY:
+📌 Tue Mar 25 - Easy Run
+Score: 8/10
+7.12km @ 6:47/km (plan: 9km @ 6:30/km)
+Good: Pace controlled in Z2, HR steady at 144
+Improve: Fell 2km short of target distance
+
+📊 WEEKLY OVERVIEW
 - Overall week score out of 10
 - Total volume assessment
 - Compliance rating
-- Key highlights and positives
-- Concerns or areas to watch
+- Key highlights
+- Concerns
 - Recovery status
 
-PART 3 - NEXT WEEK ADJUSTMENTS:
+🔄 NEXT WEEK ADJUSTMENTS
 Based on this week's performance, fatigue, compliance, and race timeline, suggest specific changes to next week's plan.
 
 You MUST output adjustments in this exact JSON format at the end of your response, inside ```json``` code block:
