@@ -1,8 +1,6 @@
 import asyncio
 import logging
-import os
-
-import anthropic
+import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -94,18 +92,25 @@ def build_weekly_summary_prompt(weekly_activities: list[dict], plan_days: list[d
 
 
 class Coach:
-    def __init__(self, api_key: str = None):
-        self.client = anthropic.Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
+    def __init__(self):
+        self.system_prompt = SYSTEM_PROMPT
 
     def analyze(self, prompt: str) -> str:
+        full_prompt = f"{self.system_prompt}\n\n{prompt}"
         try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-6", max_tokens=1024,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}])
-            return response.content[0].text
+            result = subprocess.run(
+                ["claude", "-p", full_prompt, "--model", "sonnet"],
+                capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode != 0:
+                logger.error(f"Claude CLI failed: {result.stderr}")
+                return f"[Coach unavailable: {result.stderr}]"
+            return result.stdout.strip()
+        except subprocess.TimeoutExpired:
+            logger.error("Claude CLI timed out")
+            return "[Coach unavailable: timeout]"
         except Exception as e:
-            logger.error(f"Claude API call failed: {e}")
+            logger.error(f"Claude CLI call failed: {e}")
             return f"[Coach unavailable: {e}]"
 
     async def analyze_with_retry(self, prompt: str) -> str:
