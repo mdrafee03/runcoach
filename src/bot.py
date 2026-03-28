@@ -234,6 +234,7 @@ class RunCoach:
             return
         user_msg = update.message.text
         self.db.save_conversation("user", user_msg)
+        await update.effective_chat.send_action("typing")
 
         # Check if user is reporting a completed workout
         if self._is_done_trigger(user_msg):

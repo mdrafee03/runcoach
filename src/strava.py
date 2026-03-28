@@ -62,21 +62,31 @@ class StravaClient:
         self.refresh_token = token_response["refresh_token"]
         self._save_token(self.refresh_token)
 
+    def _extract_activity(self, act, include_splits: bool = False) -> dict:
+        """Extract raw dict from a stravalib activity object."""
+        raw = {
+            "id": act.id,
+            "start_date_local": act.start_date_local.isoformat() if act.start_date_local else "",
+            "type": act.type.root if hasattr(act.type, 'root') else str(act.type),
+            "distance": int(act.distance) if act.distance else 0,
+            "moving_time": int(act.moving_time) if act.moving_time else 0,
+            "average_heartrate": float(act.average_heartrate) if act.average_heartrate else None,
+            "splits_metric": None,
+        }
+        if include_splits and act.splits_metric:
+            raw["splits_metric"] = [
+                {"distance": int(s.distance), "moving_time": int(s.moving_time),
+                 "average_heartrate": float(s.average_heartrate) if s.average_heartrate else None}
+                for s in act.splits_metric
+            ]
+        return raw
+
     def get_recent_activities(self, limit: int = 5) -> list[dict]:
         try:
             self.authenticate()
             results = []
             for act in self.client.get_activities(limit=limit):
-                raw = {
-                    "id": act.id,
-                    "start_date_local": act.start_date_local.isoformat() if act.start_date_local else "",
-                    "type": str(act.type),
-                    "distance": float(act.distance) if act.distance else 0,
-                    "moving_time": int(act.moving_time.total_seconds()) if act.moving_time else 0,
-                    "average_heartrate": float(act.average_heartrate) if act.average_heartrate else None,
-                    "splits_metric": None,
-                }
-                results.append(parse_activity(raw))
+                results.append(parse_activity(self._extract_activity(act)))
             return results
         except Exception as e:
             logger.error(f"Failed to fetch Strava activities: {e}")
@@ -86,20 +96,7 @@ class StravaClient:
         try:
             self.authenticate()
             act = self.client.get_activity(activity_id)
-            raw = {
-                "id": act.id,
-                "start_date_local": act.start_date_local.isoformat() if act.start_date_local else "",
-                "type": str(act.type),
-                "distance": float(act.distance) if act.distance else 0,
-                "moving_time": int(act.moving_time.total_seconds()) if act.moving_time else 0,
-                "average_heartrate": float(act.average_heartrate) if act.average_heartrate else None,
-                "splits_metric": [
-                    {"distance": float(s.distance), "moving_time": int(s.moving_time.total_seconds()),
-                     "average_heartrate": float(s.average_heartrate) if s.average_heartrate else None}
-                    for s in (act.splits_metric or [])
-                ],
-            }
-            return parse_activity(raw)
+            return parse_activity(self._extract_activity(act, include_splits=True))
         except Exception as e:
             logger.error(f"Failed to fetch activity {activity_id}: {e}")
             return None
