@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = """You are a personal running coach helping an athlete achieve a 1:35 half marathon goal.
 You have access to their training plan, Garmin health data, and Strava activity data.
 Be concise, encouraging, and data-driven. Use specific numbers.
-Keep responses under 200 words unless asked for detail.
+For post-workout analysis, be thorough and detailed. For other messages, keep it concise (under 200 words).
 When suggesting changes, explain why based on the data.
 If health data shows fatigue (low HRV, poor sleep, low Body Battery), prioritize recovery."""
 
@@ -34,18 +34,55 @@ def build_activity_prompt(plan: dict, activity: dict, weekly_km: float,
                           weekly_target_km: float, weeks_to_race: int, race_goal: str,
                           health: dict | None = None) -> str:
     parts = [
-        f"Analyze this completed workout.",
-        f"Race goal: {race_goal} HM in {weeks_to_race} weeks.",
-        f"Plan: {plan['workout_type']} {plan.get('target_distance_km', '')}km @ {plan.get('target_pace', 'N/A')}/km",
-        f"Actual: {activity['activity_type']} {activity['distance_km']}km @ {activity['pace_min_km']}min/km, HR avg: {activity.get('hr_avg', 'N/A')}",
-        f"Weekly progress: {weekly_km}/{weekly_target_km}km",
+        f"Give a detailed post-workout analysis for a runner targeting {race_goal} half marathon in {weeks_to_race} weeks.",
+        f"",
+        f"PLANNED: {plan['workout_type']} {plan.get('target_distance_km', '')}km @ {plan.get('target_pace', 'N/A')}/km",
+        f"ACTUAL: {activity['activity_type']} {activity['distance_km']}km @ {activity['pace_min_km']}min/km, HR avg: {activity.get('hr_avg', 'N/A')}",
     ]
+    if activity.get("splits") and activity["splits"] != "[]":
+        parts.append(f"SPLITS: {activity['splits']}")
+    parts.append(f"WEEKLY PROGRESS: {weekly_km}/{weekly_target_km}km")
+
     if health:
-        parts.append(f"Health: HRV: {health.get('hrv')}, Resting HR: {health.get('resting_hr')}, "
-                      f"Sleep: {health.get('sleep_score')}, Body Battery: {health.get('body_battery')}, "
+        parts.append(f"HEALTH DATA: HRV: {health.get('hrv')}, Resting HR: {health.get('resting_hr')}, "
+                      f"Sleep score: {health.get('sleep_score')}, Body Battery: {health.get('body_battery')}, "
                       f"VO2max: {health.get('vo2max')}, Training Load: {health.get('training_load')}, "
-                      f"Recovery: {health.get('recovery_time')}h")
-    parts.append("Provide: performance vs plan, what went well, any concerns, recovery advice based on health data, what's next.")
+                      f"Recovery time: {health.get('recovery_time')}h")
+
+    parts.append("""
+Provide a detailed analysis with these sections:
+
+📊 OVERALL RATING: Give a rating out of 10 with one-line verdict.
+
+🏃 PACING ANALYSIS:
+- Compare actual pace vs target pace
+- Was pacing consistent or did it drift? (analyze splits if available)
+- For the workout type, was this pace appropriate for 1:35 HM fitness?
+
+❤️ HEART RATE ANALYSIS:
+- Was HR appropriate for this workout type? (easy should be Z2, threshold Z3-Z4, intervals Z4-Z5)
+- Any signs of cardiac drift or overexertion?
+- HR vs pace efficiency — is the aerobic engine developing well?
+
+📏 DISTANCE & VOLUME:
+- Planned vs actual distance
+- Weekly volume progress and whether on track
+- Any concern about too much or too little volume?
+
+🩺 BODY & RECOVERY (use health data):
+- How did readiness indicators look before/during this workout?
+- Recovery recommendations based on HRV, sleep, Body Battery
+- Is training load sustainable or building too fast?
+
+✅ WHAT WENT WELL: Specific positives to reinforce.
+
+⚠️ WHAT TO IMPROVE: Specific actionable items.
+
+🎯 NEXT FOCUS:
+- What to focus on in the next 2-3 sessions
+- Any adjustments needed to hit the 1:35 goal
+- Key workout coming up this week and how to approach it
+""")
     return "\n".join(parts)
 
 
