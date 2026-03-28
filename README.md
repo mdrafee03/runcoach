@@ -11,7 +11,7 @@ Powered by Claude (Anthropic) via your Pro/Max subscription or API key.
 | Morning brief | 5am daily | Pulls Garmin health data (HRV, sleep, Body Battery) + today's plan. Sends readiness assessment. |
 | Post-workout analysis | You message "done" | Pulls latest Strava activity + Garmin health. Gives detailed report: rating/10, pacing analysis, HR zones, volume tracking, recovery advice, next focus. |
 | Missed workout check | 11pm daily | If no activity logged, offers to reschedule. |
-| Weekly summary | Sunday 8pm | Week compliance %, highlights, concerns, plan adjustments. |
+| Weekly summary + auto-adjust | Sunday 8pm | Week compliance %, highlights, concerns. **Automatically adjusts next week's plan** based on performance, fatigue, and missed workouts. Changes are applied to the database and logged for audit. |
 | Two-way coaching chat | Anytime | Ask anything: "should I skip today?", "my knee hurts", "how's my week going?" |
 
 ## Architecture
@@ -229,7 +229,31 @@ The bot pulls your latest Strava activity + Garmin health data and gives a detai
 ### Automatic messages
 - **5am**: Morning brief with today's plan + readiness check
 - **11pm**: Missed workout notification (if applicable)
-- **Sunday 8pm**: Weekly summary
+- **Sunday 8pm**: Weekly summary + adaptive plan adjustments
+
+### Adaptive Plan Adjustments
+
+Every Sunday, the bot reviews your week and automatically adjusts next week's training plan. It considers:
+- **Compliance**: If you missed sessions, it may redistribute the load
+- **Performance**: If you're ahead of pace targets, it may sharpen intensity
+- **Fatigue**: If HRV is trending down or sleep is poor, it reduces volume
+- **Race timeline**: Adjustments get more conservative closer to race day
+
+Example output:
+```
+Week 12 Summary:
+Compliance: 71% (5/7 completed, 2 missed)
+Volume: 42/55km (76%)
+...
+
+Next Week Adjustments:
+- Tue: Intervals 10km -> 8km (reduce load after low compliance week)
+- Thu: Threshold 4:45/km -> 4:50/km (ease pace, HRV trending down)
+
+✅ 2 plan adjustment(s) applied to next week.
+```
+
+All changes are logged in the `plan_changes` database table for full audit history.
 
 ## Project Structure
 
