@@ -154,12 +154,31 @@ class RunCoach:
 
         # Parse and apply plan adjustments from Claude's response
         adjustments = self._parse_adjustments(response)
+
+        # Strip JSON block from the user-facing message
+        clean_response = re.sub(r'```json\s*\n.*?\n```', '', response, flags=re.DOTALL).strip()
+
         if adjustments:
             applied = self._apply_adjustments(adjustments, current_week + 1)
             if applied:
-                response += f"\n\n✅ {applied} plan adjustment(s) applied to next week."
+                # Build before/after schedule for next week
+                clean_response += "\n\n📋 NEXT WEEK ADJUSTED SCHEDULE\n"
+                updated_next_week = self.db.get_plan_days_for_week(current_week + 1)
+                day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+                adjusted_dates = {a["date"] for a in adjustments}
+                for d in updated_next_week:
+                    from datetime import date as date_cls
+                    dt = date_cls.fromisoformat(d["date"])
+                    dn = day_names[dt.weekday()]
+                    workout = d["workout_type"]
+                    dist = f" {d['target_distance_km']}km" if d.get("target_distance_km") else ""
+                    pace = f" @ {d['target_pace']}" if d.get("target_pace") else ""
+                    marker = " ⚡ adjusted" if d["date"] in adjusted_dates else ""
+                    clean_response += f"  {dn} {d['date']}: {workout}{dist}{pace}{marker}\n"
+        else:
+            clean_response += "\n\n✅ No changes to next week's plan — stay the course!"
 
-        await context.bot.send_message(chat_id=self.chat_id, text=response)
+        await context.bot.send_message(chat_id=self.chat_id, text=clean_response)
 
     def _parse_adjustments(self, response: str) -> list[dict]:
         """Extract JSON adjustments from Claude's response."""

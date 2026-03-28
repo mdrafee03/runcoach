@@ -206,26 +206,19 @@ Improve: Fell 2km short of target distance
 - Recovery status
 
 🔄 NEXT WEEK ADJUSTMENTS
-Based on this week's performance, fatigue, compliance, and race timeline, suggest specific changes to next week's plan.
+Based on this week's performance, suggest changes to next week's plan. Explain WHY each change is being made in a conversational way.
 
-You MUST output adjustments in this exact JSON format at the end of your response, inside ```json``` code block:
+After your conversational explanation, you MUST include a hidden JSON block at the very end for the system to process. The user will NOT see this JSON — the system uses it to update the plan automatically. Put it inside ```json``` tags:
 
 ```json
 [
-  {"date": "YYYY-MM-DD", "field": "workout_type", "old": "current value", "new": "new value", "reason": "why"},
-  {"date": "YYYY-MM-DD", "field": "target_distance_km", "old": "10", "new": "8", "reason": "why"},
-  {"date": "YYYY-MM-DD", "field": "target_pace", "old": "4:45", "new": "4:50", "reason": "why"}
+  {"date": "YYYY-MM-DD", "field": "workout_type", "old": "current value", "new": "new value", "reason": "short reason"},
+  {"date": "YYYY-MM-DD", "field": "target_distance_km", "old": "10", "new": "8", "reason": "short reason"},
+  {"date": "YYYY-MM-DD", "field": "target_pace", "old": "4:45", "new": "4:50", "reason": "short reason"}
 ]
 ```
 
-If no changes needed, output an empty array: ```json\n[]\n```
-
-Only adjust what's necessary. Common adjustments:
-- Reduce volume if fatigued or compliance was low
-- Increase intensity if the athlete is ahead of schedule
-- Swap workout types if a key session was missed
-- Add extra rest if health indicators are declining
-- Sharpen pace targets if the athlete is progressing faster than planned
+If no changes needed, output: ```json\n[]\n```
 """)
     return "\n".join(parts)
 
