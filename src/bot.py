@@ -81,23 +81,34 @@ class RunCoach:
         response = await self.coach.analyze_with_retry(prompt)
         await context.bot.send_message(chat_id=self.chat_id, text=response)
 
-    async def check_strava(self, context: ContextTypes.DEFAULT_TYPE):
-        logger.debug("Polling Strava")
-        last_id = self.db.get_last_strava_activity_id()
-        for act in self.strava.get_recent_activities(limit=5):
-            if last_id and act["strava_id"] <= last_id:
-                continue
-            detail = self.strava.get_activity_detail(act["strava_id"])
-            if detail:
-                act = detail
-            plan = self.db.get_plan_day(act["date"])
-            self.db.save_activity(**{k: v for k, v in act.items() if k in ("strava_id", "date", "activity_type", "distance_km", "pace_min_km", "hr_avg", "splits")})
-            if plan:
-                self.db.update_plan_day_status(act["date"], "completed")
-                weekly_km, weekly_target = self._weekly_km()
-                prompt = build_activity_prompt(plan=plan, activity=act, weekly_km=weekly_km, weekly_target_km=weekly_target, weeks_to_race=self._weeks_to_race(), race_goal=self.settings["race"]["goal_time"])
-                response = await self.coach.analyze_with_retry(prompt)
-                await context.bot.send_message(chat_id=self.chat_id, text=response)
+    async def analyze_latest_activity(self) -> str:
+        """Pull latest Strava activity, compare to plan, return feedback."""
+        activities = self.strava.get_recent_activities(limit=1)
+        if not activities:
+            return "Couldn't find any recent activity on Strava. Make sure it's synced."
+
+        act = activities[0]
+        detail = self.strava.get_activity_detail(act["strava_id"])
+        if detail:
+            act = detail
+
+        # Save to DB
+        self.db.save_activity(**{k: v for k, v in act.items() if k in
+            ("strava_id", "date", "activity_type", "distance_km", "pace_min_km", "hr_avg", "splits")})
+
+        plan = self.db.get_plan_day(act["date"])
+        if plan:
+            self.db.update_plan_day_status(act["date"], "completed")
+            weekly_km, weekly_target = self._weekly_km()
+            prompt = build_activity_prompt(
+                plan=plan, activity=act, weekly_km=weekly_km,
+                weekly_target_km=weekly_target,
+                weeks_to_race=self._weeks_to_race(),
+                race_goal=self.settings["race"]["goal_time"])
+            return await self.coach.analyze_with_retry(prompt)
+        else:
+            return (f"Logged: {act['activity_type']} {act['distance_km']}km "
+                    f"@ {act['pace_min_km']}min/km. No plan found for {act['date']}.")
 
     async def missed_check(self, context: ContextTypes.DEFAULT_TYPE):
         today = date.today()
@@ -122,11 +133,27 @@ class RunCoach:
         response = await self.coach.analyze_with_retry(prompt)
         await context.bot.send_message(chat_id=self.chat_id, text=response)
 
+    def _is_done_trigger(self, msg: str) -> bool:
+        """Detect if the user is saying they finished a workout."""
+        triggers = ["done", "finished", "completed", "just ran", "did my run",
+                     "workout done", "run done", "back from run", "just finished"]
+        msg_lower = msg.lower().strip()
+        return any(t in msg_lower for t in triggers)
+
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_authorized(update.effective_chat.id, self.chat_id):
             return
         user_msg = update.message.text
         self.db.save_conversation("user", user_msg)
+
+        # Check if user is reporting a completed workout
+        if self._is_done_trigger(user_msg):
+            await update.message.reply_text("Pulling your latest activity from Strava...")
+            response = await self.analyze_latest_activity()
+            self.db.save_conversation("assistant", response)
+            await update.message.reply_text(response)
+            return
+
         today = date.today()
         history = self.db.get_recent_conversations(limit=20)
         ctx = {
@@ -166,7 +193,6 @@ def main():
     jq = app.job_queue
     jq.run_daily(rc.morning_brief, time=time(hour=sched["morning_brief_hour"], minute=sched["morning_brief_minute"]), name="morning_brief")
     jq.run_daily(rc.missed_check, time=time(hour=sched["missed_check_hour"], minute=sched["missed_check_minute"]), name="missed_check")
-    jq.run_repeating(rc.check_strava, interval=sched["strava_poll_interval_minutes"] * 60, first=10, name="strava_poll")
     jq.run_daily(rc.weekly_summary, time=time(hour=sched["weekly_summary_hour"], minute=0), days=(sched["weekly_summary_day"],), name="weekly_summary")
 
     logger.info("RunCoach starting...")
