@@ -157,7 +157,7 @@ class RunCoach:
         if adjustments:
             applied = self._apply_adjustments(adjustments, current_week + 1)
             if applied:
-                response += f"\n\n✅ {applied} plan adjustment(s) applied to next week's sheet."
+                response += f"\n\n✅ {applied} plan adjustment(s) applied to next week."
 
         await context.bot.send_message(chat_id=self.chat_id, text=response)
 

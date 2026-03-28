@@ -13,7 +13,7 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/Applications/cmux.app/Contents/Resources/bin:/Users/rafee/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <string>/Applications/cmux.app/Contents/Resources/bin:/Users/rafee/.nvm/versions/node/v24.14.0/bin:/Users/rafee/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/rafee/Documents/fitness/running</string>
