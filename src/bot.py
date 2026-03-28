@@ -156,7 +156,7 @@ class RunCoach:
         adjustments = self._parse_adjustments(response)
 
         # Strip JSON block from the user-facing message
-        clean_response = re.sub(r'```json\s*\n.*?\n```', '', response, flags=re.DOTALL).strip()
+        clean_response = re.sub(r'```json.*?```', '', response, flags=re.DOTALL).strip()
 
         if adjustments:
             applied = self._apply_adjustments(adjustments, current_week + 1)
@@ -183,7 +183,7 @@ class RunCoach:
     def _parse_adjustments(self, response: str) -> list[dict]:
         """Extract JSON adjustments from Claude's response."""
         try:
-            match = re.search(r'```json\s*\n(.*?)\n```', response, re.DOTALL)
+            match = re.search(r'```json\s*(.*?)```', response, re.DOTALL)
             if match:
                 return json.loads(match.group(1))
         except (json.JSONDecodeError, AttributeError) as e:
