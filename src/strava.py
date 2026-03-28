@@ -1,10 +1,13 @@
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from stravalib import Client
 
 logger = logging.getLogger(__name__)
+
+TOKEN_FILE = Path(__file__).parent.parent / "data" / ".strava_token"
 
 
 def parse_activity(raw: dict) -> dict:
@@ -33,7 +36,23 @@ class StravaClient:
         self.client = Client()
         self.client_id = client_id
         self.client_secret = client_secret
-        self.refresh_token = refresh_token
+        # Load persisted token if available, otherwise use env value
+        self.refresh_token = self._load_token() or refresh_token
+
+    def _load_token(self) -> str | None:
+        try:
+            if TOKEN_FILE.exists():
+                return TOKEN_FILE.read_text().strip()
+        except Exception:
+            pass
+        return None
+
+    def _save_token(self, token: str):
+        try:
+            TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+            TOKEN_FILE.write_text(token)
+        except Exception as e:
+            logger.warning(f"Failed to persist Strava token: {e}")
 
     def authenticate(self):
         token_response = self.client.refresh_access_token(
@@ -41,6 +60,7 @@ class StravaClient:
             refresh_token=self.refresh_token)
         self.client.access_token = token_response["access_token"]
         self.refresh_token = token_response["refresh_token"]
+        self._save_token(self.refresh_token)
 
     def get_recent_activities(self, limit: int = 5) -> list[dict]:
         try:

@@ -195,8 +195,8 @@ class Coach:
             return f"[Coach unavailable: {e}]"
 
     async def analyze_with_retry(self, prompt: str) -> str:
-        result = self.analyze(prompt)
+        result = await asyncio.to_thread(self.analyze, prompt)
         if result.startswith("[Coach unavailable"):
             await asyncio.sleep(30)
-            result = self.analyze(prompt)
+            result = await asyncio.to_thread(self.analyze, prompt)
         return result

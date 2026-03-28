@@ -1,6 +1,9 @@
 import logging
 import re
 from datetime import date, timedelta
+from pathlib import Path
+
+import yaml
 
 from src.utils import plan_start_date
 
@@ -69,7 +72,11 @@ def bootstrap(db, planner, settings: dict):
         if new_id:
             settings["plan"]["active_sheet_id"] = new_id
             planner.active_sheet_id = new_id
-            logger.info(f"Active sheet created: {new_id}")
+            # Persist to settings.yaml so we don't re-clone on restart
+            config_path = Path(__file__).parent.parent / "config" / "settings.yaml"
+            with open(config_path, "w") as f:
+                yaml.dump(settings, f, default_flow_style=False)
+            logger.info(f"Active sheet created and saved: {new_id}")
 
     rows = planner.read_sheet()
     if not rows:

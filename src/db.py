@@ -3,7 +3,7 @@ import sqlite3
 
 class Database:
     def __init__(self, db_path: str):
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
 
     def init(self):
@@ -51,10 +51,17 @@ class Database:
         self.conn.commit()
 
     def save_health_metrics(self, date: str, **kwargs):
-        cols = ["date"] + list(kwargs.keys())
-        vals = [date] + list(kwargs.values())
-        placeholders = ",".join(["?"] * len(vals))
-        self.conn.execute(f"INSERT OR REPLACE INTO health_metrics ({','.join(cols)}) VALUES ({placeholders})", vals)
+        existing = self.get_health_metrics(date)
+        if existing:
+            # Merge: only update fields that have non-None values
+            sets = ", ".join(f"{k} = ?" for k in kwargs.keys())
+            vals = list(kwargs.values()) + [date]
+            self.conn.execute(f"UPDATE health_metrics SET {sets} WHERE date = ?", vals)
+        else:
+            cols = ["date"] + list(kwargs.keys())
+            vals = [date] + list(kwargs.values())
+            placeholders = ",".join(["?"] * len(vals))
+            self.conn.execute(f"INSERT INTO health_metrics ({','.join(cols)}) VALUES ({placeholders})", vals)
         self.conn.commit()
 
     def get_health_metrics(self, date: str) -> dict | None:
