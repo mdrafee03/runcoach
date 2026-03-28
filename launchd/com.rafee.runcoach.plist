@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.rafee.runcoach</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>mkdir -p /Users/rafee/Documents/fitness/running/data &amp;&amp; /Users/rafee/.local/bin/uv run --project /Users/rafee/Documents/fitness/running runcoach</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/rafee/Documents/fitness/running</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/rafee/Documents/fitness/running/data/runcoach.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/rafee/Documents/fitness/running/data/runcoach.stderr.log</string>
+</dict>
+</plist>
