@@ -304,6 +304,16 @@ def main():
     jq.run_daily(rc.missed_check, time=time(hour=sched["missed_check_hour"], minute=sched["missed_check_minute"]), name="missed_check")
     jq.run_daily(rc.weekly_summary, time=time(hour=sched["weekly_summary_hour"], minute=0), days=(sched["weekly_summary_day"],), name="weekly_summary")
 
+    # Catch-up: if bot starts after morning brief time, send it now
+    from datetime import datetime
+    now = datetime.now()
+    morning_time = time(hour=sched["morning_brief_hour"], minute=sched["morning_brief_minute"])
+    today = date.today()
+    morning_sent = rc.db.get_health_metrics(today.isoformat())  # proxy: if we fetched health today, morning brief ran
+    if now.time() > morning_time and not morning_sent:
+        logger.info("Catch-up: sending missed morning brief")
+        jq.run_once(rc.morning_brief, when=10, name="catchup_morning")
+
     logger.info("RunCoach starting...")
     app.run_polling()
 
