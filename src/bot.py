@@ -79,9 +79,20 @@ class RunCoach:
             logger.warning(f"Garmin fetch failed: {e}")
 
         plan = self.db.get_plan_day(today.isoformat()) or {"workout_type": "Rest", "target_distance_km": None, "target_pace": None, "phase": "Unknown", "week_num": 0}
-        prompt = build_morning_prompt(plan=plan, health=health, weeks_to_race=self._weeks_to_race(), race_goal=self.settings["race"]["goal_time"])
-        response = await self.coach.analyze_with_retry(prompt)
-        await context.bot.send_message(chat_id=self.chat_id, text=response)
+        try:
+            prompt = build_morning_prompt(plan=plan, health=health, weeks_to_race=self._weeks_to_race(), race_goal=self.settings["race"]["goal_time"])
+            response = await self.coach.analyze_with_retry(prompt)
+            await context.bot.send_message(chat_id=self.chat_id, text=f"🌅 {response}")
+            logger.info("Morning brief sent")
+        except Exception as e:
+            # Fallback: send raw data if Claude fails
+            logger.error(f"Claude failed for morning brief: {e}")
+            workout = f"{plan['workout_type']} {plan.get('target_distance_km', '') or ''}km"
+            health_str = ""
+            if health:
+                health_str = f"\nHRV: {health.get('hrv')} | Sleep: {health.get('sleep_score')} | Body Battery: {health.get('body_battery')}"
+            msg = f"🌅 Good morning!\nToday's plan: {workout}{health_str}"
+            await context.bot.send_message(chat_id=self.chat_id, text=msg)
 
     async def analyze_latest_activity(self) -> str:
         """Pull latest Strava activity + Garmin health, compare to plan, return feedback."""
@@ -124,15 +135,35 @@ class RunCoach:
 
     async def missed_check(self, context: ContextTypes.DEFAULT_TYPE):
         today = date.today()
+        logger.info(f"Running missed check for {today}")
         plan = self.db.get_plan_day(today.isoformat())
-        if not plan or plan.get("actual_status") == "completed" or plan.get("workout_type") == "Rest":
+        if not plan:
+            logger.info("No plan for today, skipping missed check")
+            return
+        if plan.get("actual_status") == "completed":
+            logger.info("Workout already completed, skipping missed check")
+            return
+        if plan.get("workout_type") in ("Rest", "Rest Day"):
+            logger.info("Rest day, skipping missed check")
             return
         if self.db.get_activities_for_date(today.isoformat()):
+            logger.info("Activity found for today, skipping missed check")
             return
+
         self.db.update_plan_day_status(today.isoformat(), "missed")
-        prompt = build_missed_prompt(plan=plan, weeks_to_race=self._weeks_to_race())
-        response = await self.coach.analyze_with_retry(prompt)
-        await context.bot.send_message(chat_id=self.chat_id, text=response)
+        logger.info(f"Missed workout: {plan['workout_type']}, sending notification")
+        try:
+            prompt = build_missed_prompt(plan=plan, weeks_to_race=self._weeks_to_race())
+            response = await self.coach.analyze_with_retry(prompt)
+            await context.bot.send_message(chat_id=self.chat_id, text=f"🌙 {response}")
+            logger.info("Missed workout notification sent")
+        except Exception as e:
+            # Fallback: send a simple message if Claude fails
+            logger.error(f"Claude failed for missed check: {e}")
+            msg = (f"🌙 No activity logged today.\n"
+                   f"Planned: {plan['workout_type']} {plan.get('target_distance_km', '') or ''}km\n"
+                   f"Want to reschedule for tomorrow?")
+            await context.bot.send_message(chat_id=self.chat_id, text=msg)
 
     async def weekly_summary(self, context: ContextTypes.DEFAULT_TYPE):
         today = date.today()
